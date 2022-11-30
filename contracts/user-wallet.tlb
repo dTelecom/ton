@@ -1,0 +1,12 @@
+// https://ton.org/docs/#/overviews/TL-B
+// base types defined in https://github.com/ton-blockchain/ton/blob/master/crypto/block/block.tlb
+
+// storage (according to save_data() contract method)
+
+storage#_ balance:Grams owner_address:MsgAddress master_address:MsgAddress user_wallet_code:^Cell = Storage
+
+// ops
+
+increase_balance query_id:uint64 amount:Grams = InternalMsgBody
+
+burn query_id:uint64 amount:Grams = InternalMsgBody

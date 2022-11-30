@@ -1,0 +1,60 @@
+cell pack_user_wallet_data(int balance, slice owner_address, slice master_address, cell user_wallet_code) inline {
+    return begin_cell()
+            .store_coins(balance)
+            .store_slice(owner_address)
+            .store_slice(master_address)
+            .store_ref(user_wallet_code)
+            .end_cell();
+}
+
+cell pack_node_wallet_data(slice node_host, slice owner_address, slice master_address, cell node_wallet_code) inline {
+  int node_host_len_in_bits = slice_bits(node_host);
+    return begin_cell()
+            .store_uint(node_host_len_in_bits / 8, 8)
+            .store_slice(node_host)
+            .store_slice(owner_address)
+            .store_slice(master_address)
+            .store_ref(node_wallet_code)
+            .end_cell();
+}
+
+
+
+cell calculate_user_wallet_state_init(slice owner_address, slice master_address, cell user_wallet_code) inline {
+    return begin_cell()
+            .store_uint(0, 2)
+            .store_dict(user_wallet_code)
+            .store_dict(pack_user_wallet_data(0, owner_address, master_address, user_wallet_code))
+            .store_uint(0, 1)
+            .end_cell();
+}
+
+cell calculate_node_wallet_state_init(slice owner_address, slice master_address, cell node_wallet_code) inline {
+  slice empty_node_host = begin_cell().end_cell().begin_parse();
+    return begin_cell()
+            .store_uint(0, 2)
+            .store_dict(node_wallet_code)
+            .store_dict(pack_node_wallet_data(empty_node_host, owner_address, master_address, node_wallet_code))
+            .store_uint(0, 1)
+            .end_cell();
+}
+
+
+
+slice calculate_wallet_address(cell state_init) inline {
+  return begin_cell()
+            .store_uint(4, 3)
+            .store_int(workchain(), 8)
+            .store_uint(cell_hash(state_init), 256)
+            .end_cell()
+            .begin_parse();
+}
+
+
+slice calculate_user_wallet_address(slice user_address, slice master_address, cell user_wallet_code) inline {
+    return calculate_wallet_address(calculate_user_wallet_state_init(user_address, master_address, user_wallet_code));
+}
+
+slice calculate_node_wallet_address(slice node_address, slice master_address, cell node_wallet_code) inline {
+    return calculate_wallet_address(calculate_node_wallet_state_init(node_address, master_address, node_wallet_code));
+}

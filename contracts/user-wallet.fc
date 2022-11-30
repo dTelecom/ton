@@ -1,0 +1,64 @@
+#include "imports/stdlib.fc";
+#include "imports/params.fc";
+#include "imports/dtelecom-utils.fc";
+#include "imports/dtelecom-op-codes.fc";
+
+(int, slice, slice, cell) load_data() inline {
+    slice ds = get_data().begin_parse();
+    return (
+        ds~load_coins(),    ;; balance
+        ds~load_msg_addr(), ;; owner_address
+        ds~load_msg_addr(), ;; master_address
+        ds~load_ref()       ;; user_wallet_code
+    );
+}
+
+() save_data(int balance, slice owner_address, slice master_address, cell user_wallet_code) impure inline {
+    set_data(pack_user_wallet_data(balance, owner_address, master_address, user_wallet_code));
+}
+
+() increase_balance(slice sender_address, int amount) impure {
+    (int balance, slice owner_address, slice master_address, cell user_wallet_code) = load_data();
+    throw_unless(707, equal_slices(master_address, sender_address));
+    balance += amount;
+    save_data(balance, owner_address, master_address, user_wallet_code);
+}
+
+() burn(slice sender_address, int amount) impure {
+    (int balance, slice owner_address, slice master_address, cell user_wallet_code) = load_data();
+    throw_unless(707, equal_slices(master_address, sender_address));
+    balance -= amount;
+    save_data(balance, owner_address, master_address, user_wallet_code);
+}
+
+() recv_internal(cell in_msg_full, slice in_msg_body) impure {
+    if (in_msg_body.slice_empty?()) { ;; ignore empty messages
+        return ();
+    }
+
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    if (flags & 1) { ;; ignore all bounced messages
+        return ();
+    }
+    slice sender_address = cs~load_msg_addr();
+
+    int op = in_msg_body~load_uint(32);
+    int query_id = in_msg_body~load_uint(64);
+
+    if (op == op::increase_balance()) {
+        int amount = in_msg_body~load_coins();
+        increase_balance(sender_address, amount);
+        return ();
+    }
+
+    if (op == op::burn()) {
+        int amount = in_msg_body~load_coins();
+        burn(sender_address, amount);
+        return ();
+    }
+}
+
+(int, slice, slice, cell) get_wallet_data() method_id {
+    return load_data();
+}
