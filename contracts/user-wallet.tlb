@@ -3,10 +3,10 @@
 
 // storage (according to save_data() contract method)
 
-storage#_ balance:Grams owner_address:MsgAddress master_address:MsgAddress user_wallet_code:^Cell = Storage
+storage#_ owner_address:MsgAddress master_address:MsgAddress user_wallet_code:^Cell = Storage
 
 // ops
 
-increase_balance query_id:uint64 amount:Grams = InternalMsgBody
+top_up query_id:uint64 = InternalMsgBody
 
-burn query_id:uint64 amount:Grams = InternalMsgBody
+withdraw query_id:uint64 amount:Grams = InternalMsgBody

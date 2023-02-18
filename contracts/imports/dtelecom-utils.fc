@@ -1,6 +1,5 @@
-cell pack_user_wallet_data(int balance, slice owner_address, slice master_address, cell user_wallet_code) inline {
+cell pack_user_wallet_data(slice owner_address, slice master_address, cell user_wallet_code) inline {
     return begin_cell()
-            .store_coins(balance)
             .store_slice(owner_address)
             .store_slice(master_address)
             .store_ref(user_wallet_code)
@@ -24,7 +23,7 @@ cell calculate_user_wallet_state_init(slice owner_address, slice master_address,
     return begin_cell()
             .store_uint(0, 2)
             .store_dict(user_wallet_code)
-            .store_dict(pack_user_wallet_data(0, owner_address, master_address, user_wallet_code))
+            .store_dict(pack_user_wallet_data(owner_address, master_address, user_wallet_code))
             .store_uint(0, 1)
             .end_cell();
 }

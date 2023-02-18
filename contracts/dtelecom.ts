@@ -3,7 +3,7 @@ import BN from "bn.js";
 import * as utils from '../contracts/utils';
 
 enum OPS {
-    IncreaseUserBalance = 0xd47c6dd,
+    CreateUser = 0xd47c6dd,
     CreateNode = 0xad4fe3a
 }
 
@@ -16,12 +16,10 @@ export function initData(adminAddress: Address, userWalletCode: Cell, nodeWallet
         .endCell();
 }
 
-export function increaseUserBalanceOpBody(userAddress: Address, amount: BN): Cell {
+export function createUserOpBody(): Cell {
     return beginCell()
-        .storeUint(OPS.IncreaseUserBalance, 32)
+        .storeUint(OPS.CreateUser, 32)
         .storeUint(0, 64)
-        .storeAddress(userAddress)
-        .storeCoins(amount)
         .endCell();
 }
 

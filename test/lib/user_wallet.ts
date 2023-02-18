@@ -7,7 +7,6 @@ enum OPS {
 }
 
 interface UserWalletData {
-    balance: BN;
     owner: Address;
     master: Address;
 }
@@ -16,7 +15,6 @@ export class UserWallet extends WrappedSmartContract {
 
     static initData(ownerAddress: Address, masterAddress: Address, userWalletCode: Cell): Cell {
         return beginCell()
-            .storeCoins(0)
             .storeAddress(ownerAddress)
             .storeAddress(masterAddress)
             .storeRef(userWalletCode)
@@ -26,9 +24,8 @@ export class UserWallet extends WrappedSmartContract {
     async getWalletData(): Promise<UserWalletData> {
         const res = await this.contract.invokeGetMethod('get_wallet_data', []);
         return {
-            balance: res.result[0] as BN,
-            owner: (res.result[1] as Slice).readAddress()!,
-            master: (res.result[2] as Slice).readAddress()!
+            owner: (res.result[0] as Slice).readAddress()!,
+            master: (res.result[1] as Slice).readAddress()!
         };
     }
 
