@@ -3,15 +3,16 @@ import { Dtelecom } from "./lib/dtelecom";
 import * as dtelecom from '../contracts/dtelecom'
 import * as nodeWallet from '../contracts/node-wallet'
 
-import chai, { expect } from "chai";
+import chai, { expect, should } from "chai";
 import chaiBN from "chai-bn";
 import BN from "bn.js";
 chai.use(chaiBN(BN));
+should();
 
 import { hex as masterCodeHex } from '../build/dtelecom.compiled.json'
 import { hex as userWalletCodeHex } from '../build/user-wallet.compiled.json'
 import { hex as nodeWalletCodeHex } from '../build/node-wallet.compiled.json'
-import { Address, Cell, toNano } from "ton";
+import { Address, Cell, InternalCommonMessageInfoRelaxed, toNano } from "ton";
 
 import { UserWallet } from "./lib/user_wallet";
 import { actionToMessage } from "./lib/utils";
@@ -22,9 +23,8 @@ const USER_WALLET_CODE = Cell.fromBoc(userWalletCodeHex)[0];
 const NODE_WALLET_CODE = Cell.fromBoc(nodeWalletCodeHex)[0];
 
 const OWNER_ADDRESS = randomAddress("owner");
-const USER_ADDRESS_1 = randomAddress("user_1");
-const USER_ADDRESS_2 = randomAddress("user_2");
-const NODE_ADDRESS_1 = randomAddress("node_1");
+const USER_ADDRESS = randomAddress("user_1");
+const NODE_ADDRESS = randomAddress("node_1");
 
 describe('Dtelecom', () => {
     let masterContract: Dtelecom;
@@ -53,173 +53,117 @@ describe('Dtelecom', () => {
     })
 
     it('should get master initialization data correctly', async () => {
-        const { balance, owner } = await masterContract.getDtelecomData();
+        const { owner } = await masterContract.getDtelecomData();
 
-        expect(balance).to.bignumber.equal(toNano(0));
         expect(owner.toFriendly()).to.equal(OWNER_ADDRESS.toFriendly());
     });
 
     it('offchain and onchain user wallet should return the same address', async () => {
-        const userWallet = await getUserWalletContract(USER_ADDRESS_1, masterContract.address);
-        const userWalletAddress = await masterContract.getUserWalletAddress(USER_ADDRESS_1);
+        const userWallet = await getUserWalletContract(USER_ADDRESS, masterContract.address);
+        const userWalletAddress = await masterContract.getUserWalletAddress(USER_ADDRESS);
         expect(userWallet.address.toFriendly()).to.equal(userWalletAddress.toFriendly());
     });
 
     it('should get userWallet initialization data correctly', async () => {
-        const userWallet = await getUserWalletContract(USER_ADDRESS_1, masterContract.address);
+        const userWallet = await getUserWalletContract(USER_ADDRESS, masterContract.address);
         const userWalletData = await userWallet.getWalletData();
 
-        expect(userWalletData.owner.toFriendly()).to.equal(USER_ADDRESS_1.toFriendly());
+        expect(userWalletData.owner.toFriendly()).to.equal(USER_ADDRESS.toFriendly());
         expect(userWalletData.master.toFriendly()).to.equal(masterContract.address.toFriendly());
     });
 
-    it('should increase balance of 2 users', async () => {
+    it('should create user wallet', async () => {
         const { actionList: createUser1ActionList } = await masterContract.contract.sendInternalMessage(
             internalMessage({
-                from: USER_ADDRESS_1,
-                value: new BN(10),
+                from: USER_ADDRESS,
                 body: dtelecom.createUserOpBody()
             })
         );
-        console.log(parseActionsList(createUser1ActionList));
+        expect(createUser1ActionList.length).equal(1, "should be only one message");
+        expect((createUser1ActionList[0] as SendMsgAction).mode).equal(64, "mode should be 64")
+        expect(((createUser1ActionList[0] as SendMsgAction).message.info as InternalCommonMessageInfoRelaxed).value.coins)
+            .to.be.bignumber.equal(toNano(0), "should carry 0 coins");
 
-        const user1Wallet = await getUserWalletContract(USER_ADDRESS_1, masterContract.address);
-        console.log(JSON.stringify(user1Wallet.contract.getC7()));
-        // setBalance(user1Wallet.contract, new BN(0));
-        console.log(JSON.stringify(user1Wallet.contract.getC7()));
-        const res = await user1Wallet.contract.sendInternalMessage(
-            actionToMessage(masterContract.address, createUser1ActionList[0])
-        );
-        console.log(JSON.stringify(user1Wallet.contract.getC7()));
-        console.log(res);
-
-        // const { balance: user1BalanceInitial } = await user1Wallet.getWalletData();
-        // expect(user1BalanceInitial).to.bignumber.equal(new BN(0), 'user1Wallet inintial balance should be 0');
-
-        // await user1Wallet.contract.sendInternalMessage(
-        //     actionToMessage(masterContract.address, increaseUser1BalanceActionList[0])
-        // )
-
-        // const { balance: user1BalanceAfter } = await user1Wallet.getWalletData();
-        // expect(user1BalanceAfter).to.bignumber.equal(
-        //     toNano(0.01),
-        //     "user1Wallet should reflect its balance after increasing"
-        // );
-
-
-
-        // const { actionList: increaseUser2BalanceActionList } = await masterContract.contract.sendInternalMessage(
-        //     internalMessage({
-        //         from: OWNER_ADDRESS,
-        //         body: dtelecom.createUserOpBody(USER_ADDRESS_2)
-        //     })
-        // );
-
-        // const user2Wallet = await getUserWalletContract(USER_ADDRESS_2, masterContract.address);
-
-        // const { balance: user2BalanceInitial } = await user2Wallet.getWalletData();
-        // expect(user2BalanceInitial).to.bignumber.equal(new BN(0), 'user2Wallet inintial balance should be 0');
-
-        // await user2Wallet.contract.sendInternalMessage(
-        //     actionToMessage(masterContract.address, increaseUser2BalanceActionList[0])
-        // )
-        // await user2Wallet.contract.sendInternalMessage(
-        //     actionToMessage(masterContract.address, increaseUser2BalanceActionList[0])
-        // )
-
-        // const { balance: user2BalanceAfter } = await user2Wallet.getWalletData();
-        // expect(user2BalanceAfter).to.bignumber.equal(
-        //     toNano(0.04),
-        //     "user1Wallet should reflect its balance after increasing"
-        // );
+        const user1Wallet = await getUserWalletContract(USER_ADDRESS, masterContract.address);
+        expect(((createUser1ActionList[0] as SendMsgAction).message.info as InternalCommonMessageInfoRelaxed).dest.toFriendly())
+            .to.equal(user1Wallet.address.toFriendly(), "should send message to user1 wallet");
     });
 
     it('offchain and onchain node wallet should return the same address', async () => {
-        const nodeWallet = await getNodeWalletContract(NODE_ADDRESS_1, masterContract.address);
-        const nodeWalletAddress = await masterContract.getNodeWalletAddress(NODE_ADDRESS_1);
-        expect(nodeWallet.address.toFriendly()).to.equal(nodeWalletAddress.toFriendly());
+        const nodeWallet = await getNodeWalletContract(NODE_ADDRESS, masterContract.address);
+        const nodeWalletAddress = await masterContract.getNodeWalletAddress(NODE_ADDRESS);
+        nodeWallet.address.toFriendly().should.equal(nodeWalletAddress.toFriendly());
     });
 
     it('should get nodeWallet initialization data correctly', async () => {
-        const nodeWallet = await getNodeWalletContract(NODE_ADDRESS_1, masterContract.address);
+        const nodeWallet = await getNodeWalletContract(NODE_ADDRESS, masterContract.address);
         const nodeWalletData = await nodeWallet.getWalletData();
 
-        expect(nodeWalletData.nodeHost).to.string('');
-        expect(nodeWalletData.owner.toFriendly()).to.equal(NODE_ADDRESS_1.toFriendly());
-        expect(nodeWalletData.master.toFriendly()).to.equal(masterContract.address.toFriendly());
+        nodeWalletData.nodeHost.should.equal('');
+        nodeWalletData.owner.toFriendly().should.equal(NODE_ADDRESS.toFriendly());
+        nodeWalletData.master.toFriendly().should.equal(masterContract.address.toFriendly());
     });
 
     it('create node', async () => {
-        const { actionList: createNode1ActionList } = await masterContract.contract.sendInternalMessage(
+        const notEnoughMoneyResult = await masterContract.contract.sendInternalMessage(
             internalMessage({
-                from: OWNER_ADDRESS,
-                body: dtelecom.createNodeOpBody(NODE_ADDRESS_1, 'www.hello-world.com')
+                from: NODE_ADDRESS,
+                value: new BN(10000000000), // 10 TON
+                body: dtelecom.createNodeOpBody('wss://dtelecom.org')
             })
         );
 
-        expect(createNode1ActionList.length).equal(1);
-        expect(createNode1ActionList[0].type).equal('send_msg');
+        expect(notEnoughMoneyResult.type).to.be.equal('failed');
+        expect(notEnoughMoneyResult.exit_code).to.be.equal(73);
 
-        const node1Wallet = await getNodeWalletContract(NODE_ADDRESS_1, masterContract.address);
+        const {actionList: createNode1ActionList} = await masterContract.contract.sendInternalMessage(
+            internalMessage({
+                from: NODE_ADDRESS,
+                value: new BN(11000000000), // 11 TON
+                body: dtelecom.createNodeOpBody('wss://dtelecom.org')
+            })
+        );
+
+        expect(createNode1ActionList.length).equal(2);
+        expect(createNode1ActionList[0].type).equal('send_msg');
+        expect(createNode1ActionList[1].type).equal('send_msg');
+
+        const node1Wallet = await getNodeWalletContract(NODE_ADDRESS, masterContract.address);
         await node1Wallet.contract.sendInternalMessage(
             actionToMessage(masterContract.address, createNode1ActionList[0])
         )
 
         const { nodeHost: nodeHostAfter } = await node1Wallet.getWalletData();
-        expect(nodeHostAfter).equal('www.hello-world.com');
+        expect(nodeHostAfter).to.be.equal('wss://dtelecom.org');
     });
 
     it('should end room', async () => {
-        const { actionList: increaseUser1BalanceActionList } = await masterContract.contract.sendInternalMessage(
+        const node1Wallet = await getNodeWalletContract(NODE_ADDRESS, masterContract.address);
+
+        const { actionList: endRoomActionList, type: endRoomType } = await node1Wallet.contract.sendInternalMessage(
             internalMessage({
-                from: OWNER_ADDRESS,
-                body: dtelecom.increaseUserBalanceOpBody(USER_ADDRESS_1, toNano(1000))
+                from: NODE_ADDRESS,
+                body: nodeWallet.endRoomOpBody(USER_ADDRESS, 99)
             })
         );
+        endRoomType.should.equal('success');
 
-        const user1Wallet = await getUserWalletContract(USER_ADDRESS_1, masterContract.address);
-
-        const { balance: user1BalanceInitial } = await user1Wallet.getWalletData();
-        expect(user1BalanceInitial).to.bignumber.equal(new BN(0), 'user1Wallet inintial balance should be 0');
-
-        await user1Wallet.contract.sendInternalMessage(
-            actionToMessage(masterContract.address, increaseUser1BalanceActionList[0])
+        const {actionList: endNodeRoomActionList, type: endNodeRoomType} = await masterContract.contract.sendInternalMessage(
+            actionToMessage(node1Wallet.address, endRoomActionList[0])
         )
+        endNodeRoomType.should.equal('success');
 
-        const { balance: user1BalanceAfter } = await user1Wallet.getWalletData();
-        expect(user1BalanceAfter).to.bignumber.equal(
-            toNano(1000),
-            "user1Wallet should reflect its balance after increasing"
-        );
-
-
-
-        const { balance: masterBalanceBeforeRoomEnded } = await masterContract.getDtelecomData();
-        expect(masterBalanceBeforeRoomEnded).to.bignumber.equal(toNano(0));
-
-        const node1Wallet = await getNodeWalletContract(NODE_ADDRESS_1, masterContract.address);
-        const { actionList: roomEndedActionList } = await node1Wallet.contract.sendInternalMessage(
-            internalMessage({
-                from: NODE_ADDRESS_1,
-                body: nodeWallet.roomEndedOpBody(USER_ADDRESS_1, 99)
-            })
-        );
-
-        const {actionList: nodeRoomEndedActionList} = await masterContract.contract.sendInternalMessage(
-            actionToMessage(node1Wallet.address, roomEndedActionList[0])
+        const user1Wallet = await getUserWalletContract(USER_ADDRESS, masterContract.address);
+        const { actionList: payRewardsActionList, type: payRewardsType } = await user1Wallet.contract.sendInternalMessage(
+            actionToMessage(masterContract.address, endNodeRoomActionList[0])
         )
+        payRewardsType.should.equal('success');
 
-        const { balance: masterBalanceAfterRoomEnded } = await masterContract.getDtelecomData();
-        expect(masterBalanceAfterRoomEnded).to.bignumber.equal(new BN(99*10), 'master balance should reflect its balance after room ended');
+        payRewardsActionList.should.have.lengthOf(2);
+        payRewardsActionList[0].type.should.equal('send_msg');
+        payRewardsActionList[1].type.should.equal('send_msg');
 
-        await user1Wallet.contract.sendInternalMessage(
-            actionToMessage(masterContract.address, nodeRoomEndedActionList[0])
-        )
-
-        const { balance: user1BalanceAfterBurn } = await user1Wallet.getWalletData();
-        expect(user1BalanceAfterBurn).to.bignumber.equal(
-            toNano(1000).sub(new BN(99*10)),
-            "user1Wallet should reflect its balance after room ended"
-        );
+        ((payRewardsActionList[0] as SendMsgAction).message.info as InternalCommonMessageInfoRelaxed).value.coins.should.be.bignumber.equal(new BN(99*10));
+        ((payRewardsActionList[1] as SendMsgAction).message.info as InternalCommonMessageInfoRelaxed).value.coins.should.be.bignumber.equal(new BN(99*10));
     });
 });

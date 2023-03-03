@@ -3,15 +3,15 @@ import {Address, beginCell, Cell, Slice} from "ton";
 
 interface NodeWalletData {
     nodeHost: string;
-    owner: Address;
     master: Address;
+    owner: Address;
 }
 
 export class NodeWallet extends WrappedSmartContract {
 
     static initData(ownerAddress: Address, masterAddress: Address, nodeWalletCode: Cell): Cell {
         return beginCell()
-            .storeUint8(0)
+            .storeUint8(0) // empty host
             .storeAddress(ownerAddress)
             .storeAddress(masterAddress)
             .storeRef(nodeWalletCode)

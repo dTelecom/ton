@@ -7,6 +7,8 @@ storage#_ node_host_length:uint8 node_host:(bits (node_host_length * 8)) owner_a
 
 // ops
 
+withdraw  query_id:uint64 amount:Grams = InternalMsgBody
+
 set_host query_id:uint64 node_host_length:uint8 node_host:(bits (node_host_length * 8)) = InternalMsgBody
 
-room_ended query_id:uint64 creator_user_address:MsgAddress spent_minutes:uint32 = InternalMsgBody
+end_room  query_id:uint64 user_address:MsgAddress spent_minutes:uint32 = InternalMsgBody

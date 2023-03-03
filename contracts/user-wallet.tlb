@@ -7,6 +7,8 @@ storage#_ owner_address:MsgAddress master_address:MsgAddress user_wallet_code:^C
 
 // ops
 
-top_up query_id:uint64 = InternalMsgBody
+withdraw    query_id:uint64 amount:Grams = InternalMsgBody
 
-withdraw query_id:uint64 amount:Grams = InternalMsgBody
+pay_rewards query_id:uint64 amount:Grams node_address:MsgAddress = InternalMsgBody
+
+top_up      query_id:uint64 = InternalMsgBody

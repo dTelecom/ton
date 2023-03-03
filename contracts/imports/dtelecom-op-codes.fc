@@ -1,12 +1,17 @@
 ;; User wallet
-int op::top_up() asm "0x3515fa43 PUSHINT";
-int op::withdraw() asm "0x24552b24 PUSHINT";
+int op::pay_rewards() asm "0x5ec8a9ed PUSHINT";
+int op::top_up() asm "0x152185e0 PUSHINT";
 
 ;; Node wallet
 int op::set_host() asm "0x227b61b6 PUSHINT";
-int op::room_ended() asm "0x4251da14 PUSHINT";
+int op::end_room() asm "0x91e26e0 PUSHINT";
 
 ;; Master contract
-int op::create_user() asm "0xd47c6dd PUSHINT";
-int op::create_node() asm "0xad4fe3a PUSHINT";
-int op::node_room_ended() asm "0x5524ebed PUSHINT";
+int op::create_user() asm "0x3e135959 PUSHINT";
+int op::create_node() asm "0x448685af PUSHINT";
+int op::end_node_room() asm "0x4d6bf224 PUSHINT";
+
+
+;; Common
+int op::reward() asm "0xfffffff1 PUSHINT";
+int op::withdraw() asm "0xfffffff2 PUSHINT";

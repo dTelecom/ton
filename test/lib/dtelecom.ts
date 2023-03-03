@@ -1,10 +1,10 @@
 import {WrappedSmartContract} from "./wrapped-smart-contract";
 import BN from "bn.js";
 import {Address, beginCell, Cell, Slice} from "ton";
-import {toCellSlice} from "./utils";
+import {toCellSlice, toCellSliceFromString} from "./utils";
+import { stackSlice } from "ton-contract-executor";
 
 interface DtelecomData {
-    balance: BN;
     owner: Address;
 }
 
@@ -22,8 +22,7 @@ export class Dtelecom extends WrappedSmartContract {
     async getDtelecomData(): Promise<DtelecomData> {
         const res = await this.contract.invokeGetMethod('get_dtelecom_data', []);
         return {
-            balance: res.result[0] as BN,
-            owner: (res.result[1] as Slice).readAddress()!
+            owner: (res.result[0] as Slice).readAddress()!
         };
     }
 }

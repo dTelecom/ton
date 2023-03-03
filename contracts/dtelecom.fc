@@ -1,21 +1,23 @@
 #include "imports/stdlib.fc";
 #include "imports/params.fc";
+#include "imports/send-modes.fc";
 #include "imports/dtelecom-utils.fc";
 #include "imports/dtelecom-op-codes.fc";
 
-(int, slice, cell, cell) load_data() inline {
+int min_gas_amount() asm "1000000000 PUSHINT"; ;; 1 TON
+int staked_amount() asm "10000000000 PUSHINT"; ;; 10 TON
+
+(slice, cell, cell) load_data() inline {
     slice ds = get_data().begin_parse();
     return (
-        ds~load_coins(), ;; balance
         ds~load_msg_addr(), ;; admin_address
         ds~load_ref(), ;; user_wallet_code
         ds~load_ref() ;; node_wallet_code
     );
 }
 
-() save_data(int balance, slice admin_address, cell user_wallet_code, cell node_wallet_code) impure inline {
+() save_data(slice admin_address, cell user_wallet_code, cell node_wallet_code) impure inline {
     set_data(begin_cell()
-            .store_coins(balance)
             .store_slice(admin_address)
             .store_ref(user_wallet_code)
             .store_ref(node_wallet_code)
@@ -23,9 +25,10 @@
     );
 }
 
-() create_user(int query_id, slice user_address, cell user_wallet_code) impure {
-    cell state_init = calculate_user_wallet_state_init(user_address, my_address(), user_wallet_code);
+() create_user(int query_id, slice owner_address, cell user_wallet_code) impure {
+    cell state_init = calculate_user_wallet_state_init(owner_address, my_address(), user_wallet_code);
     slice user_wallet_address = calculate_wallet_address(state_init);
+    
     var msg_body = begin_cell()
             .store_uint(op::top_up(), 32)
             .store_uint(query_id, 64)
@@ -37,46 +40,51 @@
             .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
             .store_ref(state_init)
             .store_ref(msg_body);
-    send_raw_message(msg.end_cell(), 64);
+    send_raw_message(msg.end_cell(), CARRY_REMAINING_GAS);
 }
 
-() create_node(int query_id, slice node_address, slice node_host, cell node_wallet_code) impure {
-    cell state_init = calculate_node_wallet_state_init(node_address, my_address(), node_wallet_code);
+() create_node(int query_id, slice owner_address, slice node_host, cell node_wallet_code) impure {
+    cell state_init = calculate_node_wallet_state_init(owner_address, my_address(), node_wallet_code);
     slice node_wallet_address = calculate_wallet_address(state_init);
-    int node_host_len_in_bits = slice_bits(node_host);
     var msg_body = begin_cell()
             .store_uint(op::set_host(), 32)
             .store_uint(query_id, 64)
-            .store_uint(node_host_len_in_bits / 8, 8)
+            .store_uint(slice_bits(node_host) / 8, 8)
             .store_slice(node_host)
             .end_cell();
     var msg = begin_cell()
             .store_uint(0x18, 6)
             .store_slice(node_wallet_address)
-            .store_coins(0)
+            .store_coins(staked_amount())
             .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
             .store_ref(state_init)
             .store_ref(msg_body);
-    send_raw_message(msg.end_cell(), 64);
+    send_raw_message(msg.end_cell(), 1);
+
+    var owner_msg = begin_cell()
+           .store_uint(0x10, 6) ;; nobounce
+           .store_slice(owner_address)
+           .store_coins(0)
+           .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1);
+    send_raw_message(owner_msg.end_cell(), 64);
 }
 
-() node_room_ended(int query_id, slice creator_user_address, int spent_minutes, int balance, slice admin_address, cell user_wallet_code, cell node_wallet_code) impure {
+() end_node_room(int query_id, slice node_address, slice room_creator, int spent_minutes, cell user_wallet_code) impure {
     int room_price = spent_minutes * 10; ;; fixed price of one minute
-    balance += room_price;
-    save_data(balance, admin_address, user_wallet_code, node_wallet_code);
 
     var msg_body = begin_cell()
-                    .store_uint(op::withdraw(), 32)
+                    .store_uint(op::pay_rewards(), 32)
                     .store_uint(query_id, 64)
                     .store_coins(room_price)
+                    .store_slice(node_address)
                     .end_cell();
     var msg = begin_cell()
                 .store_uint(0x18, 6)
-                .store_slice(calculate_user_wallet_address(creator_user_address, my_address(), user_wallet_code))
+                .store_slice(calculate_user_wallet_address(room_creator, my_address(), user_wallet_code))
                 .store_coins(0)
                 .store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
                 .store_ref(msg_body);
-    send_raw_message(msg.end_cell(), 64);
+    send_raw_message(msg.end_cell(), CARRY_REMAINING_GAS);
 }
 
 () recv_internal(int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -95,7 +103,7 @@
     int op = in_msg_body~load_uint(32);
     int query_id = in_msg_body~load_uint(64);
 
-    (int balance, slice admin_address, cell user_wallet_code, cell node_wallet_code) = load_data();
+    (slice admin_address, cell user_wallet_code, cell node_wallet_code) = load_data();
 
     if (op == op::create_user()) {
         create_user(query_id, sender_address, user_wallet_code);
@@ -104,39 +112,39 @@
     }
 
     if (op == op::create_node()) {
-        throw_unless(73, equal_slices(sender_address, admin_address));
-        slice node_address = in_msg_body~load_msg_addr();
+        throw_unless(73, msg_value >= staked_amount() + min_gas_amount());
+        
         int node_host_length = in_msg_body~load_uint(8);
         slice node_host = in_msg_body~load_bits(node_host_length * 8);
 
-        create_node(query_id, node_address, node_host, node_wallet_code);
+        create_node(query_id, sender_address, node_host, node_wallet_code);
 
         return ();
     }
 
-    if (op == op::node_room_ended()) {
-        slice node_address = in_msg_body~load_msg_addr();
-        throw_unless(73, equal_slices(sender_address, calculate_node_wallet_address(node_address, my_address(), node_wallet_code)));
-        slice creator_user_address = in_msg_body~load_msg_addr();
+    if (op == op::end_node_room()) {
+        slice node_owner_address = in_msg_body~load_msg_addr();
+        throw_unless(73, equal_slices(sender_address, calculate_node_wallet_address(node_owner_address, my_address(), node_wallet_code)));
+        slice room_creator = in_msg_body~load_msg_addr();
         int spent_minutes = in_msg_body~load_uint(32);
 
-        node_room_ended(query_id, creator_user_address, spent_minutes, balance, admin_address, user_wallet_code, node_wallet_code);
+        end_node_room(query_id, sender_address, room_creator, spent_minutes, user_wallet_code);
 
         return ();
     }
 }
 
-(int, slice) get_dtelecom_data() method_id {
-    (int balance, slice admin_address, cell user_wallet_code, cell node_wallet_code) = load_data();
-    return (balance, admin_address);
+(slice) get_dtelecom_data() method_id {
+    (slice admin_address, cell user_wallet_code, cell node_wallet_code) = load_data();
+    return (admin_address);
 }
 
 slice get_user_wallet_address(slice user_address) method_id {
-    (int balance, slice admin_address, cell user_wallet_code, cell node_wallet_code) = load_data();
+    (slice admin_address, cell user_wallet_code, cell node_wallet_code) = load_data();
     return calculate_user_wallet_address(user_address, my_address(), user_wallet_code);
 }
 
 slice get_node_wallet_address(slice node_address) method_id {
-    (int balance, slice admin_address, cell user_wallet_code, cell node_wallet_code) = load_data();
-    return calculate_node_wallet_address(node_address, my_address(), node_wallet_code);
+    (slice admin_address, cell user_wallet_code, cell node_wallet_code) = load_data();
+return calculate_node_wallet_address(node_address, my_address(), node_wallet_code);
 }

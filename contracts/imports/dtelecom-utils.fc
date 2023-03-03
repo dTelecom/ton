@@ -29,11 +29,10 @@ cell calculate_user_wallet_state_init(slice owner_address, slice master_address,
 }
 
 cell calculate_node_wallet_state_init(slice owner_address, slice master_address, cell node_wallet_code) inline {
-  slice empty_node_host = begin_cell().end_cell().begin_parse();
     return begin_cell()
             .store_uint(0, 2)
             .store_dict(node_wallet_code)
-            .store_dict(pack_node_wallet_data(empty_node_host, owner_address, master_address, node_wallet_code))
+            .store_dict(pack_node_wallet_data("", owner_address, master_address, node_wallet_code))
             .store_uint(0, 1)
             .end_cell();
 }

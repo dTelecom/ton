@@ -1,5 +1,6 @@
 #include "imports/stdlib.fc";
 #include "imports/params.fc";
+#include "imports/send-modes.fc";
 #include "imports/dtelecom-utils.fc";
 #include "imports/dtelecom-op-codes.fc";
 
@@ -7,31 +8,31 @@
     slice ds = get_data().begin_parse();
     int node_host_length = ds~load_uint(8);
     return (
-        ds~load_bits(node_host_length * 8), ;; node_host
+        ds~load_bits(node_host_length * 8), ;; node host
         ds~load_msg_addr(),                 ;; owner_address
         ds~load_msg_addr(),                 ;; master_address
         ds~load_ref()                       ;; node_wallet_code
     );
 }
 
-() save_data(slice node_host, slice owner_address, slice master_address, cell node_wallet_code) impure inline {
+() save_data(slice node_host, slice owner_address, slice master_address,cell node_wallet_code) impure inline {
     set_data(pack_node_wallet_data(node_host, owner_address, master_address, node_wallet_code));
 }
 
 () set_host(slice sender_address, slice node_host) impure {
     (slice old_node_host, slice owner_address, slice master_address, cell node_wallet_code) = load_data();
-    throw_unless(707, equal_slices(master_address, sender_address) | equal_slices(owner_address, sender_address));
-    save_data(node_host, owner_address, master_address, node_wallet_code);
+    throw_unless(707, equal_slices(master_address, sender_address));
+    save_data(node_host, master_address, owner_address, node_wallet_code);
 }
 
-() room_ended(slice sender_address, int query_id, slice creator_user_address, int spent_minutes) impure {
+() end_room(slice sender_address, int query_id, slice room_creator, int spent_minutes) impure {
     (slice node_host, slice owner_address, slice master_address, cell node_wallet_code) = load_data();
     throw_unless(707, equal_slices(owner_address, sender_address));
     var msg_body = begin_cell()
-                    .store_uint(op::node_room_ended(), 32)
+                    .store_uint(op::end_node_room(), 32)
                     .store_uint(query_id, 64)
                     .store_slice(owner_address)
-                    .store_slice(creator_user_address)
+                    .store_slice(room_creator)
                     .store_uint(spent_minutes, 32)
                     .end_cell();
     var msg = begin_cell()
@@ -40,7 +41,7 @@
                 .store_coins(0)
                 .store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
                 .store_ref(msg_body);
-    send_raw_message(msg.end_cell(), 64);
+    send_raw_message(msg.end_cell(), CARRY_REMAINING_GAS);
 }
 
 () recv_internal(cell in_msg_full, slice in_msg_body) impure {
@@ -61,17 +62,17 @@
     if (op == op::set_host()) {
         int node_host_length = in_msg_body~load_uint(8);
         slice node_host = in_msg_body~load_bits(node_host_length * 8);
-
+        
         set_host(sender_address, node_host);
 
         return ();
     }
 
-    if (op == op::room_ended()) {
-        slice creator_user_address = in_msg_body~load_msg_addr();
+    if (op == op::end_room()) {
+        slice room_creator = in_msg_body~load_msg_addr();
         int spent_minutes = in_msg_body~load_uint(32);
 
-        room_ended(sender_address, query_id, creator_user_address, spent_minutes);
+        end_room(sender_address, query_id, room_creator, spent_minutes);
 
         return ();
     }

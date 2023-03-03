@@ -1,4 +1,4 @@
-import {TVMStackEntry} from "ton-contract-executor/dist/executor/executor";
+import {stackSlice, TVMStackEntry} from "ton-contract-executor/dist/executor/executor";
 import {Address, beginCell, CommonMessageInfo, CellMessage, InternalMessage} from "ton";
 import { OutAction } from "ton-contract-executor";
 import BN from "bn.js";
@@ -12,6 +12,14 @@ export function toCellSlice(address: Address): TVMStackEntry {
             .toBoc({idx: false})
             .toString("base64"),
     };
+}
+
+export function toCellSliceFromString(s: String): TVMStackEntry {
+    return stackSlice(
+        beginCell()
+        .storeBuffer(Buffer.from(s))
+        .endCell()
+    );
 }
 
 export function toCellString(address: Address): String {

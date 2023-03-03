@@ -1,5 +1,6 @@
 #include "imports/stdlib.fc";
 #include "imports/params.fc";
+#include "imports/send-modes.fc";
 #include "imports/dtelecom-utils.fc";
 #include "imports/dtelecom-op-codes.fc";
 
@@ -20,17 +21,41 @@
     (slice owner_address, slice master_address, cell user_wallet_code) = load_data();
     throw_unless(707, equal_slices(owner_address, sender_address));
 
-    var msg_body = begin_cell()
-            .store_uint(op::top_up(), 32)
-            .store_uint(query_id, 64)
-            .end_cell();
     var msg = begin_cell()
             .store_uint(0x18, 6)
             .store_slice(owner_address)
             .store_coins(amount)
+            .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1);
+    send_raw_message(msg.end_cell(), 64);
+}
+
+() pay_rewards(int query_id, slice sender_address, slice node_address, int amount) impure {
+    (slice owner_address, slice master_address, cell user_wallet_code) = load_data();
+    throw_unless(707, equal_slices(master_address, sender_address));
+
+    var msg_body = begin_cell()
+            .store_uint(op::reward(), 32)
+            .store_uint(query_id, 64)
+            .end_cell();
+    var msg = begin_cell()
+            .store_uint(0x18, 6)
+            .store_slice(master_address)
+            .store_coins(amount)
             .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
             .store_ref(msg_body);
-    send_raw_message(msg.end_cell(), 64);
+    send_raw_message(msg.end_cell(), PAY_FEES_SEPARATELY);
+
+    var msg_body = begin_cell()
+            .store_uint(op::reward(), 32)
+            .store_uint(query_id, 64)
+            .end_cell();
+    var msg = begin_cell()
+            .store_uint(0x18, 6)
+            .store_slice(node_address)
+            .store_coins(amount)
+            .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+            .store_ref(msg_body);
+    send_raw_message(msg.end_cell(), CARRY_REMAINING_GAS);
 }
 
 () recv_internal(cell in_msg_full, slice in_msg_body) impure {
@@ -51,6 +76,13 @@
     if (op == op::withdraw()) {
         int amount = in_msg_body~load_coins();
         withdraw(query_id, sender_address, amount);
+        return ();
+    }
+
+    if (op == op::pay_rewards()) {
+        int amount = in_msg_body~load_coins();
+        slice node_address = in_msg_body~load_msg_addr();
+        pay_rewards(query_id, sender_address, node_address, amount);
         return ();
     }
 }

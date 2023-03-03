@@ -1,14 +1,14 @@
 import {Address, beginCell, Cell, WalletContract, TupleSlice} from "ton";
 
 enum OPS {
-    SetHost = 0x227b61b6,
-    RoomEnded = 0x4251da14
+    EndRoom = 0x91e26e0,
+    SetOwner = 0x13fd15d3
 }
 
-export function roomEndedOpBody(creatorUserAddress: Address, spentMinutes: number): Cell {
+export function endRoomOpBody(creatorUserAddress: Address, spentMinutes: number): Cell {
     return beginCell()
-        .storeUint(OPS.RoomEnded, 32)
-        .storeUint(0, 64)
+        .storeUint(OPS.EndRoom, 32)
+        .storeUint(0, 64) // query_id
         .storeAddress(creatorUserAddress)
         .storeUint(spentMinutes, 32)
         .endCell();
