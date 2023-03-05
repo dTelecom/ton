@@ -22,7 +22,7 @@
 () set_host(slice sender_address, slice node_host) impure {
     (slice old_node_host, slice owner_address, slice master_address, cell node_wallet_code) = load_data();
     throw_unless(707, equal_slices(master_address, sender_address));
-    save_data(node_host, master_address, owner_address, node_wallet_code);
+    save_data(node_host, owner_address, master_address, node_wallet_code);
 }
 
 () end_room(slice sender_address, int query_id, slice room_creator, int spent_minutes) impure {
@@ -45,9 +45,11 @@
 }
 
 () recv_internal(cell in_msg_full, slice in_msg_body) impure {
+    ~dump(2);
     if (in_msg_body.slice_empty?()) { ;; ignore empty messages
         return ();
     }
+    ~dump(20);
 
     slice cs = in_msg_full.begin_parse();
     int flags = cs~load_uint(4);
@@ -56,10 +58,15 @@
     }
     slice sender_address = cs~load_msg_addr();
 
+    ~dump(21);
+
     int op = in_msg_body~load_uint(32);
     int query_id = in_msg_body~load_uint(64);
 
+    ~dump(22);
+
     if (op == op::set_host()) {
+        ~dump(220);
         int node_host_length = in_msg_body~load_uint(8);
         slice node_host = in_msg_body~load_bits(node_host_length * 8);
         
@@ -69,6 +76,7 @@
     }
 
     if (op == op::end_room()) {
+        ~dump(221);
         slice room_creator = in_msg_body~load_msg_addr();
         int spent_minutes = in_msg_body~load_uint(32);
 

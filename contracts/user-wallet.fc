@@ -29,36 +29,44 @@
     send_raw_message(msg.end_cell(), 64);
 }
 
-() pay_rewards(int query_id, slice sender_address, slice node_address, int amount) impure {
+() pay_rewards(int query_id, slice sender_address, slice node_address, slice node_owner_address, int amount) impure {
     (slice owner_address, slice master_address, cell user_wallet_code) = load_data();
     throw_unless(707, equal_slices(master_address, sender_address));
 
-    var msg_body = begin_cell()
+    var msg_body0 = begin_cell()
             .store_uint(op::reward(), 32)
             .store_uint(query_id, 64)
             .end_cell();
-    var msg = begin_cell()
+    var msg0 = begin_cell()
             .store_uint(0x18, 6)
             .store_slice(master_address)
             .store_coins(amount)
-            .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
-            .store_ref(msg_body);
-    send_raw_message(msg.end_cell(), PAY_FEES_SEPARATELY);
+            .store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+            .store_ref(msg_body0);
+    send_raw_message(msg0.end_cell(), PAY_FEES_SEPARATELY);
 
-    var msg_body = begin_cell()
+    var msg_body1 = begin_cell()
             .store_uint(op::reward(), 32)
             .store_uint(query_id, 64)
             .end_cell();
-    var msg = begin_cell()
+    var msg1 = begin_cell()
             .store_uint(0x18, 6)
             .store_slice(node_address)
             .store_coins(amount)
-            .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
-            .store_ref(msg_body);
+            .store_uint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+            .store_ref(msg_body1);
+    send_raw_message(msg1.end_cell(), PAY_FEES_SEPARATELY);
+
+    var msg = begin_cell()
+        .store_uint(0x18, 6)
+            .store_slice(node_owner_address)
+            .store_coins(0)
+            .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1);
     send_raw_message(msg.end_cell(), CARRY_REMAINING_GAS);
 }
 
 () recv_internal(cell in_msg_full, slice in_msg_body) impure {
+    ~dump(3);
     if (in_msg_body.slice_empty?()) { ;; ignore empty messages
         return ();
     }
@@ -82,7 +90,8 @@
     if (op == op::pay_rewards()) {
         int amount = in_msg_body~load_coins();
         slice node_address = in_msg_body~load_msg_addr();
-        pay_rewards(query_id, sender_address, node_address, amount);
+        slice node_owner_address = in_msg_body~load_msg_addr();
+        pay_rewards(query_id, sender_address, node_address, node_owner_address, amount);
         return ();
     }
 }

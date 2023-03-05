@@ -9,9 +9,9 @@ import BN from "bn.js";
 chai.use(chaiBN(BN));
 should();
 
-import { hex as masterCodeHex } from '../build/dtelecom.compiled.json'
-import { hex as userWalletCodeHex } from '../build/user-wallet.compiled.json'
-import { hex as nodeWalletCodeHex } from '../build/node-wallet.compiled.json'
+import { hex as masterCodeHex } from '../build/dtelecom.compiled.json';
+import { hex as userWalletCodeHex } from '../build/user-wallet.compiled.json';
+import { hex as nodeWalletCodeHex } from '../build/node-wallet.compiled.json';
 import { Address, Cell, InternalCommonMessageInfoRelaxed, toNano } from "ton";
 
 import { UserWallet } from "./lib/user_wallet";
@@ -124,9 +124,8 @@ describe('Dtelecom', () => {
             })
         );
 
-        expect(createNode1ActionList.length).equal(2);
+        expect(createNode1ActionList.length).equal(1);
         expect(createNode1ActionList[0].type).equal('send_msg');
-        expect(createNode1ActionList[1].type).equal('send_msg');
 
         const node1Wallet = await getNodeWalletContract(NODE_ADDRESS, masterContract.address);
         await node1Wallet.contract.sendInternalMessage(
@@ -159,11 +158,12 @@ describe('Dtelecom', () => {
         )
         payRewardsType.should.equal('success');
 
-        payRewardsActionList.should.have.lengthOf(2);
+        payRewardsActionList.should.have.lengthOf(3);
         payRewardsActionList[0].type.should.equal('send_msg');
         payRewardsActionList[1].type.should.equal('send_msg');
+        payRewardsActionList[2].type.should.equal('send_msg');
 
-        ((payRewardsActionList[0] as SendMsgAction).message.info as InternalCommonMessageInfoRelaxed).value.coins.should.be.bignumber.equal(new BN(99*10));
-        ((payRewardsActionList[1] as SendMsgAction).message.info as InternalCommonMessageInfoRelaxed).value.coins.should.be.bignumber.equal(new BN(99*10));
+        ((payRewardsActionList[0] as SendMsgAction).message.info as InternalCommonMessageInfoRelaxed).value.coins.should.be.bignumber.equal(new BN(99*100000000));
+        ((payRewardsActionList[1] as SendMsgAction).message.info as InternalCommonMessageInfoRelaxed).value.coins.should.be.bignumber.equal(new BN(99*100000000));
     });
 });
